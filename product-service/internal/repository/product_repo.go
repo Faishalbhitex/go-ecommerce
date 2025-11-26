@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"product-service/internal/models"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 var ErrNotFound = errors.New("product not found")
@@ -30,7 +30,7 @@ func NewPostgresProductRepository(db *sql.DB) *PostgresProductRepository {
 	return &PostgresProductRepository{db: db}
 }
 
-// Create
+//// @REPO:CREATE-BEGIN
 func (r *PostgresProductRepository) Create(ctx context.Context, p *models.Product) error {
 	query := `
 	INSERT INTO products (name, description, price, qty, category, create_at, update_at)
@@ -40,7 +40,9 @@ func (r *PostgresProductRepository) Create(ctx context.Context, p *models.Produc
 	return r.db.QueryRowContext(ctx, query, p.Name, p.Description, p.Price, p.Qty, p.Category).Scan(&p.ID, &p.CreateAt, &p.UpdateAt)
 }
 
-// GetByID
+//// @REPO:CREATE-END
+
+//// @REPO:READ-BEGIN
 func (r *PostgresProductRepository) GetByID(ctx context.Context, id int64) (*models.Product, error) {
 	query := `
 	SELECT id, name, description, price, qty, category, create_at, update_at
@@ -59,7 +61,6 @@ func (r *PostgresProductRepository) GetByID(ctx context.Context, id int64) (*mod
 	return p, nil
 }
 
-// List
 func (r *PostgresProductRepository) List(ctx context.Context) ([]*models.Product, error) {
 	query := `
 		SELECT id, name, description, price, qty, category, create_at, update_at
@@ -84,7 +85,6 @@ func (r *PostgresProductRepository) List(ctx context.Context) ([]*models.Product
 	return res, nil
 }
 
-// Pagnation
 func (r *PostgresProductRepository) ListPaged(ctx context.Context, limit, offset int) ([]*models.Product, error) {
 	query := `
 		SELECT id, name, description, price, qty, category, create_at, update_at
@@ -106,7 +106,6 @@ func (r *PostgresProductRepository) ListPaged(ctx context.Context, limit, offset
 	return result, nil
 }
 
-// Search
 func (r *PostgresProductRepository) Search(ctx context.Context, q string) ([]*models.Product, error) {
 	query := `
 		SELECT id, name, description, price, qty, category, create_at, update_at
@@ -130,7 +129,9 @@ func (r *PostgresProductRepository) Search(ctx context.Context, q string) ([]*mo
 	return result, nil
 }
 
-// Update
+//// @REPO:READ-END
+
+//// @REPO:UPDATE-BEGIN
 func (r *PostgresProductRepository) Update(ctx context.Context, p *models.Product) error {
 	query := `
 		UPDATE products
@@ -148,7 +149,6 @@ func (r *PostgresProductRepository) Update(ctx context.Context, p *models.Produc
 	return nil
 }
 
-// Patch Partial
 func (r *PostgresProductRepository) Patch(ctx context.Context, id int64, patch *models.ProductPatch) error {
 	parts := []string{}
 	args := []interface{}{}
@@ -201,7 +201,9 @@ func (r *PostgresProductRepository) Patch(ctx context.Context, id int64, patch *
 	return nil
 }
 
-// Delete
+//// @REPO:UPDATE-END
+
+//// @REPO:DELETE-BEGIN
 func (r *PostgresProductRepository) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM products WHERE id=$1`
 	res, err := r.db.ExecContext(ctx, query, id)
@@ -214,3 +216,5 @@ func (r *PostgresProductRepository) Delete(ctx context.Context, id int64) error 
 	}
 	return nil
 }
+
+//// @REPO:DELETE-END

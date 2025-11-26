@@ -27,10 +27,14 @@ func NewProductService(repo repository.ProductRepository) ProductService {
 	}
 }
 
+//// @SERVICE:CREATE-BEGIN
 func (s *productService) Create(ctx context.Context, p *models.Product) error {
 	return s.repo.Create(ctx, p)
 }
 
+//// @SERVICE:CREATE-END
+
+//// @SERVICE:READ-BEGIN
 func (s *productService) GetByID(ctx context.Context, id int64) (*models.Product, error) {
 	return s.repo.GetByID(ctx, id)
 }
@@ -51,6 +55,9 @@ func (s *productService) Search(ctx context.Context, q string) ([]*models.Produc
 	return s.repo.Search(ctx, q)
 }
 
+//// @SERVICE:READ-END
+
+//// @SERVICE:UPDATE-BEGIN
 func (s *productService) Update(ctx context.Context, p *models.Product) error {
 	return s.repo.Update(ctx, p)
 }
@@ -59,6 +66,11 @@ func (s *productService) Patch(ctx context.Context, id int64, patch *models.Prod
 	return s.repo.Patch(ctx, id, patch)
 }
 
+//// @SERVICE:UPDATE-END
+
+//// @SERVICE:DELETE-BEGIN
 func (s *productService) Delete(ctx context.Context, id int64) error {
 	return s.repo.Delete(ctx, id)
 }
+
+//// @SERVICE:DELETE-END

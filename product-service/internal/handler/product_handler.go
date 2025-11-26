@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"product-service/internal/dto"
 	"product-service/internal/models"
 	"product-service/internal/repository"
 	"product-service/internal/service"
+	"product-service/internal/utils"
 	"strconv"
 	"time"
 
@@ -20,6 +22,7 @@ type ProductHandler struct {
 	errLog  *log.Logger
 }
 
+// Constructorr
 func NewProductHandler(svc service.ProductService, info, errl *log.Logger) *ProductHandler {
 	return &ProductHandler{
 		svc:     svc,
@@ -28,24 +31,62 @@ func NewProductHandler(svc service.ProductService, info, errl *log.Logger) *Prod
 	}
 }
 
+// // @HANDLER:CREATE-BEGIN
 func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var p models.Product
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		http.Error(w, "invalid payload", http.StatusBadRequest)
+	var input dto.CreateProductRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.Err(w, utils.BadRequest("Invalid JSON payload"))
 		return
 	}
+
+	if input.Name == "" {
+		utils.Err(w, utils.Validation("name is required"))
+		return
+	}
+
+	if input.Price <= 0 {
+		utils.Err(w, utils.Validation("price must be greater than 0"))
+		return
+	}
+	if input.Qty < 0 {
+		utils.Err(w, utils.Validation("qty cannot br negative"))
+		return
+	}
+
+	p := &models.Product{
+		Name:        input.Name,
+		Description: input.Description,
+		Price:       input.Price,
+		Qty:         input.Qty,
+		Category:    input.Category,
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	if err := h.svc.Create(ctx, &p); err != nil {
-		h.errLog.Println("create:", err)
-		http.Error(w, "failed to create", http.StatusInternalServerError)
+
+	if err := h.svc.Create(ctx, p); err != nil {
+		h.errLog.Println("create product:", err)
+		utils.Err(w, utils.Internal("Failed to create product"))
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(p)
+
+	resp := dto.ProductResponse{
+		ID:          p.ID,
+		Name:        p.Name,
+		Description: p.Description,
+		Price:       p.Price,
+		Qty:         p.Qty,
+		Category:    p.Category,
+		CreateAt:    p.CreateAt,
+		UpdateAt:    p.UpdateAt,
+	}
+
+	utils.JSON(w, http.StatusCreated, resp)
 }
 
+//// @HANDLER:CREATE-END
+
+// // @HANDLER:READ-BEGIN
 func (h *ProductHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -124,6 +165,9 @@ func (h *ProductHandler) Search(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(p)
 }
 
+//// @HANDLER:READ-END
+
+// // @HANDLER:UPDATE-BEGIN
 func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -171,6 +215,9 @@ func (h *ProductHandler) Patch(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status": "patched"}`))
 }
 
+//// @HANDLER:UPDATE-END
+
+// // @HANDLER:DELETE-BEGIN
 func (h *ProductHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -191,3 +238,5 @@ func (h *ProductHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+//// @HANDLER:DELETE-END

@@ -91,7 +91,7 @@ func (h *ProductHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+		utils.Err(w, utils.BadRequest("invalid id"))
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
@@ -99,15 +99,14 @@ func (h *ProductHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	p, err := h.svc.GetByID(ctx, id)
 	if err != nil {
 		if err == repository.ErrNotFound {
-			http.Error(w, "not found", http.StatusNotFound)
+			utils.Err(w, utils.NotFound("product not found"))
 			return
 		}
 		h.errLog.Println("getbyid:", err)
-		http.Error(w, "server error", http.StatusInternalServerError)
+		utils.Err(w, utils.Internal("server error"))
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(p)
+	utils.JSON(w, http.StatusOK, utils.ToProductResponse(p))
 }
 
 func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -116,53 +115,58 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	list, err := h.svc.List(ctx)
 	if err != nil {
 		h.errLog.Println("List:", err)
-		http.Error(w, "server error", http.StatusInternalServerError)
+		utils.Err(w, utils.Internal("failed to list products"))
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(list)
+	utils.JSON(w, http.StatusOK, map[string]any{
+		"data":  utils.ToProductResponseSlice(list),
+		"count": len(list),
+	})
 }
 
 func (h *ProductHandler) ListPaged(w http.ResponseWriter, r *http.Request) {
 	pageStr := r.URL.Query().Get("page")
 	limitStr := r.URL.Query().Get("limit")
 
-	page, err := strconv.Atoi(pageStr)
-	if err != nil || page < 1 {
-		page = 1
+	page := 1
+	if p, err := strconv.Atoi(pageStr); err == nil && p >= 1 {
+		page = p
 	}
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 {
-		limit = 10
+	limit := 10
+	if l, err := strconv.Atoi(limitStr); err == nil && l >= 1 && l <= 100 {
+		limit = l
 	}
-
-	p, err := h.svc.ListPaged(r.Context(), page, limit)
+	products, err := h.svc.ListPaged(r.Context(), page, limit)
 	if err != nil {
 		h.errLog.Println("list paged:", err)
-		http.Error(w, "failed to list paged products", http.StatusInternalServerError)
+		utils.Err(w, utils.Internal("failed to get paged products"))
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(p)
+	resp := map[string]any{
+		"data":  utils.ToProductResponseSlice(products),
+		"page":  page,
+		"limit": limit,
+	}
+	utils.JSON(w, http.StatusOK, resp)
 }
 
 func (h *ProductHandler) Search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	if q == "" {
-		http.Error(w, "query is required", http.StatusBadRequest)
+		utils.Err(w, utils.BadRequest("query parameter 'q' is required"))
 		return
 	}
 
-	p, err := h.svc.Search(r.Context(), q)
+	products, err := h.svc.Search(r.Context(), q)
 	if err != nil {
 		h.errLog.Println("search:", err)
-		http.Error(w, "search failed", http.StatusInternalServerError)
+		utils.Err(w, utils.Internal("search failed"))
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(p)
+	utils.JSON(w, http.StatusOK, map[string]any{
+		"data": utils.ToProductResponseSlice(products),
+	})
 }
 
 //// @HANDLER:READ-END

@@ -173,71 +173,136 @@ func (h *ProductHandler) Search(w http.ResponseWriter, r *http.Request) {
 
 // // @HANDLER:UPDATE-BEGIN
 func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		h.errLog.Println("update:", err)
-		http.Error(w, "invalid id", http.StatusBadRequest)
+		utils.Err(w, utils.BadRequest("invalid id"))
 		return
 	}
-	var p models.Product
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		http.Error(w, "invalid payload", http.StatusBadRequest)
+	var input dto.UpdateProductRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.Err(w, utils.BadRequest("invalid JSON payload"))
 		return
 	}
-	p.ID = id
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	if err := h.svc.Update(ctx, &p); err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+
+	if input.Name == "" {
+		utils.Err(w, utils.Validation("name is required"))
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	if input.Price <= 0 {
+		utils.Err(w, utils.Validation("price must be greater than 0"))
+		return
+	}
+	if input.Qty < 0 {
+		utils.Err(w, utils.Validation("qty cannot be negative"))
+		return
+	}
+
+	p := &models.Product{
+		ID:          id,
+		Name:        input.Name,
+		Description: input.Description,
+		Price:       input.Price,
+		Qty:         input.Qty,
+		Category:    input.Category,
+	}
+
+	updated, err := h.svc.Update(ctx, p)
+	if err != nil {
+		if err == repository.ErrNotFound {
+			utils.NotFound("product not found")
+			return
+		}
+		h.errLog.Println("update product:", err)
+		utils.Err(w, utils.Internal("failed to update product"))
+		return
+	}
+
+	utils.JSON(w, http.StatusOK, utils.ToProductResponse(updated))
 }
 
 func (h *ProductHandler) Patch(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		h.errLog.Println("patch:", err)
-		http.Error(w, "invalid id", http.StatusBadRequest)
+		utils.Err(w, utils.BadRequest("invalid id"))
 		return
 	}
 
-	var patch models.ProductPatch
-	if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+	var input dto.PatchProductRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.Err(w, utils.BadRequest("invalid JSON payload"))
 		return
 	}
 
-	if err := h.svc.Patch(r.Context(), id, &patch); err != nil {
-		http.Error(w, "patch failed", http.StatusInternalServerError)
+	if input.Price != nil && *input.Price <= 0 {
+		utils.Err(w, utils.Validation("price must be greater than 0"))
+		return
+	}
+	if input.Qty != nil && *input.Qty < 0 {
+		utils.Err(w, utils.Validation("qty cannot be negative"))
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status": "patched"}`))
+	patch := &models.ProductPatch{}
+	if input.Name != nil {
+		patch.Name = input.Name
+	}
+	if input.Description != nil {
+		patch.Description = input.Description
+	}
+	if input.Price != nil {
+		patch.Price = input.Price
+	}
+	if input.Qty != nil {
+		patch.Qty = input.Qty
+	}
+	if input.Category != nil {
+		patch.Category = input.Category
+	}
+
+	updated, err := h.svc.Patch(ctx, id, patch)
+	if err != nil {
+		if err == repository.ErrNotFound {
+			utils.Err(w, utils.NotFound("product not found"))
+			return
+		}
+		h.errLog.Println("patch product:", err)
+		utils.Err(w, utils.Internal("failed to patch product"))
+		return
+	}
+
+	utils.JSON(w, http.StatusOK, utils.ToProductResponse(updated))
 }
 
 //// @HANDLER:UPDATE-END
 
 // // @HANDLER:DELETE-BEGIN
 func (h *ProductHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+		utils.Err(w, utils.BadRequest("invalid id"))
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
 	if err := h.svc.Delete(ctx, id); err != nil {
 		if err == repository.ErrNotFound {
-			http.Error(w, "not found", http.StatusNotFound)
+			utils.Err(w, utils.NotFound("product not found"))
 			return
 		}
 		h.errLog.Println("delete:", err)
-		http.Error(w, "server error", http.StatusInternalServerError)
+		utils.Err(w, utils.Internal("failed to delete product"))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

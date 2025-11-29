@@ -17,8 +17,8 @@ type ProductRepository interface {
 	List(ctx context.Context) ([]*models.Product, error)
 	ListPaged(ctx context.Context, limit, offset int) ([]*models.Product, error)
 	Search(ctx context.Context, q string) ([]*models.Product, error)
-	Update(ctx context.Context, p *models.Product) error
-	Patch(ctx context.Context, id int64, patch *models.ProductPatch) error
+	Update(ctx context.Context, p *models.Product) (*models.Product, error)
+	Patch(ctx context.Context, id int64, patch *models.ProductPatch) (*models.Product, error)
 	Delete(ctx context.Context, id int64) error
 }
 
@@ -30,7 +30,7 @@ func NewPostgresProductRepository(db *sql.DB) *PostgresProductRepository {
 	return &PostgresProductRepository{db: db}
 }
 
-//// @REPO:CREATE-BEGIN
+// // @REPO:CREATE-BEGIN
 func (r *PostgresProductRepository) Create(ctx context.Context, p *models.Product) error {
 	query := `
 	INSERT INTO products (name, description, price, qty, category, create_at, update_at)
@@ -42,7 +42,7 @@ func (r *PostgresProductRepository) Create(ctx context.Context, p *models.Produc
 
 //// @REPO:CREATE-END
 
-//// @REPO:READ-BEGIN
+// // @REPO:READ-BEGIN
 func (r *PostgresProductRepository) GetByID(ctx context.Context, id int64) (*models.Product, error) {
 	query := `
 	SELECT id, name, description, price, qty, category, create_at, update_at
@@ -131,25 +131,42 @@ func (r *PostgresProductRepository) Search(ctx context.Context, q string) ([]*mo
 
 //// @REPO:READ-END
 
-//// @REPO:UPDATE-BEGIN
-func (r *PostgresProductRepository) Update(ctx context.Context, p *models.Product) error {
+// // @REPO:UPDATE-BEGIN
+func (r *PostgresProductRepository) Update(ctx context.Context, p *models.Product) (*models.Product, error) {
 	query := `
 		UPDATE products
 		SET name=$1, description=$2, price=$3, qty=$4, category=$5, update_at=now()
 		WHERE id=$6
+		RETURNING id, name, description, price, qty, category, create_at, update_at
 	`
-	res, err := r.db.ExecContext(ctx, query, p.Name, p.Description, p.Price, p.Qty, p.Category, p.ID)
+	var updated models.Product
+	err := r.db.QueryRowContext(ctx, query,
+		p.Name,
+		p.Description,
+		p.Price,
+		p.Qty,
+		p.Category,
+		p.ID,
+	).Scan(
+		&updated.ID,
+		&updated.Name,
+		&updated.Description,
+		&updated.Price,
+		&updated.Qty,
+		&updated.Category,
+		&updated.CreateAt,
+		&updated.UpdateAt,
+	)
 	if err != nil {
-		return err
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, err
 	}
-	aff, _ := res.RowsAffected()
-	if aff == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return &updated, nil
 }
 
-func (r *PostgresProductRepository) Patch(ctx context.Context, id int64, patch *models.ProductPatch) error {
+func (r *PostgresProductRepository) Patch(ctx context.Context, id int64, patch *models.ProductPatch) (*models.Product, error) {
 	parts := []string{}
 	args := []interface{}{}
 	i := 1
@@ -181,29 +198,40 @@ func (r *PostgresProductRepository) Patch(ctx context.Context, id int64, patch *
 	}
 
 	if len(parts) == 0 {
-		return nil
+		parts = append(parts, "update_at=now()")
 	}
 
 	query := `
-		UPDATE products SET ` + strings.Join(parts, ", ") + `, update_at=now() WHERE id=$` + strconv.Itoa(i)
+		UPDATE products SET ` + strings.Join(parts, ", ") + `, update_at=now()
+		WHERE id=$` + strconv.Itoa(i) + `
+		RETURNING id, name, description, price, qty, category, create_at, update_at
+	`
+
 	args = append(args, id)
 
-	res, err := r.db.ExecContext(ctx, query, args...)
+	var updated models.Product
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(
+		&updated.ID,
+		&updated.Name,
+		&updated.Description,
+		&updated.Price,
+		&updated.Qty,
+		&updated.Category,
+		&updated.CreateAt,
+		&updated.UpdateAt,
+	)
 	if err != nil {
-		return err
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, err
 	}
-
-	aff, _ := res.RowsAffected()
-	if aff == 0 {
-		return ErrNotFound
-	}
-
-	return nil
+	return &updated, nil
 }
 
 //// @REPO:UPDATE-END
 
-//// @REPO:DELETE-BEGIN
+// // @REPO:DELETE-BEGIN
 func (r *PostgresProductRepository) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM products WHERE id=$1`
 	res, err := r.db.ExecContext(ctx, query, id)

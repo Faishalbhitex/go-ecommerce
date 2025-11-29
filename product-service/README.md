@@ -65,7 +65,7 @@ product-service/ ├── internal/ │   ├── dto/             → Reques
 
 All errors:
 ```json
-{ "error": { "code": "NOT_FOUND", "message": "product not found" } }
+{ "error": { "code": "NOT_FOUND", "message": "product not found" } }```
 Running
 # Start DB + server
 ./scripts/dev.sh

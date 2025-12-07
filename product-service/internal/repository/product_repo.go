@@ -100,7 +100,9 @@ func (r *PostgresProductRepository) ListPaged(ctx context.Context, limit, offset
 	var result []*models.Product
 	for rows.Next() {
 		p := &models.Product{}
-		rows.Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.Qty, &p.Category, &p.CreateAt, &p.UpdateAt)
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.Qty, &p.Category, &p.CreateAt, &p.UpdateAt); err != nil {
+			return nil, err
+		}
 		result = append(result, p)
 	}
 	return result, nil
@@ -123,7 +125,9 @@ func (r *PostgresProductRepository) Search(ctx context.Context, q string) ([]*mo
 	var result []*models.Product
 	for rows.Next() {
 		p := &models.Product{}
-		rows.Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.Qty, &p.Category, &p.CreateAt, &p.UpdateAt)
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.Qty, &p.Category, &p.CreateAt, &p.UpdateAt); err != nil {
+			return nil, err
+		}
 		result = append(result, p)
 	}
 	return result, nil

@@ -214,7 +214,7 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 	updated, err := h.svc.Update(ctx, p)
 	if err != nil {
 		if err == repository.ErrNotFound {
-			utils.NotFound("product not found")
+			utils.Err(w, utils.NotFound("product not found"))
 			return
 		}
 		h.errLog.Println("update product:", err)

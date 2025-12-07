@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewRouter(prodHandler *handler.ProductHandler) *chi.Mux {
+func NewRouter(prodHandler *handler.ProductHandler, healthHandler *handler.HealthHandler) *chi.Mux {
 	r := chi.NewRouter()
 
 	// middleware global
@@ -15,6 +15,14 @@ func NewRouter(prodHandler *handler.ProductHandler) *chi.Mux {
 	r.Use(middleware.CORS)
 	r.Use(middleware.RateLimit)
 
+	// Health check endpoints (no rate limiting)
+	r.Group(func(r chi.Router) {
+		r.Get("/health", healthHandler.Health)
+		r.Get("/health/ready", healthHandler.Ready)
+		r.Get("/health/live", healthHandler.Live)
+	})
+
+	// Product endpoints
 	r.Route("/products", func(r chi.Router) {
 		r.Post("/", prodHandler.Create)
 		r.Get("/", prodHandler.List)
